@@ -1,0 +1,9 @@
+# n8n workflow exports & credential references
+# Ignore exported workflows that may contain credential IDs or private data
+**/workflow.json
+**/workflows/*.json
+*.workflow.json
+
+# n8n credential files (if you export them locally)
+credentials.json
+credentials-*.json
