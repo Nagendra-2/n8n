@@ -1,0 +1,414 @@
+{
+  "name": "socail media content genrator",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "includeDrafts": true,
+          "readStatus": "both",
+          "sender": "hi@mail.theresanaiforthat.com "
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "0e138807-0f0e-4f5b-8ad5-9dd4b57d3b67",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jYO2WaWCGDB7JJu6",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b63accb0-59cc-4753-9869-0b0c94e63a56",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        0
+      ],
+      "id": "5bfcb601-d465-41ed-922a-2ab030ba0c33",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.item.json.text;\n\n// Split newsletter into sections using common markers\nconst sections = content.split(/-{6,}|#{6,}/g);\n\n// Helper: clean text\nfunction cleanText(text) {\n    return text\n        .replace(/\\n{2,}/g, '\\n')\n        .replace(/\\*\\*/g, '')\n        .trim();\n}\n\n// Helper: extract all [title](link) pairs in section with their description\nfunction extractItemsFromSection(section) {\n    const items = [];\n    const lines = section.split('\\n');\n    let currentTitle = null;\n    let currentLink = null;\n    let currentDesc = [];\n\n    lines.forEach(line => {\n        // Detect a markdown link [title](link)\n        const match = line.match(/\\[([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/);\n        if (match) {\n            // Save previous item if exists\n            if (currentTitle) {\n                items.push({\n                    title: currentTitle,\n                    link: currentLink,\n                    description: cleanText(currentDesc.join(' '))\n                });\n            }\n            // Start a new item\n            currentTitle = match[1].trim();\n            currentLink = match[2].trim();\n            currentDesc = [line.replace(match[0], '').trim()];\n        } else if (currentTitle) {\n            currentDesc.push(line.trim());\n        }\n    });\n\n    // Push the last item\n    if (currentTitle) {\n        items.push({\n            title: currentTitle,\n            link: currentLink,\n            description: cleanText(currentDesc.join(' '))\n        });\n    }\n\n    return items;\n}\n\n// Process each section\nlet output = [];\nsections.forEach(section => {\n    const text = cleanText(section);\n    if (!text) return;\n\n    const items = extractItemsFromSection(text);\n    items.forEach(i => {\n        output.push({\n            date: new Date().toISOString(),\n            title: i.title,\n            description: i.description,\n            link: i.link\n        });\n    });\n});\n\nreturn output.map(i => ({ json: i }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "7858afb9-c328-4771-91bf-cfa952c63fa6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Input:\n- title: {{$json.title}}\n- description: {{$json.description}}\n- link: {{$json.link}}\n- date: {{$json.date}}\n\nTask:\nFor each platform (LinkedIn, Twitter/X, Instagram, Reddit, Discord):\n1. Generate one unique post per platform.\n2. Generate a premium, catchy title (replace {{$json.title}} if needed).\n3. Write a concise, attention-grabbing hook.\n4. Write main post content in line with platform style.\n5. Pick style_reference dynamically (mix storytelling).\n6. Include a subtle call to action.\n7. Add relevant trending hashtags (platform-specific).\n8. Avoid repetition across platforms.\n\nReturn JSON strictly in this format:\n\n{\n  \"LinkedIn\": {\n    \"title\": \"\",\n    \"hook\": \"\",\n    \"post_text\": \"\",\n    \"style_reference\": \"\",\n    \"call_to_action\": \"\",\n    \"hashtags\": []\n}, \"Instagram\": { \"title\": \"\", \"hook\": \"\", \"post_text\": \"\", \"style_reference\": \"\", \"call_to_action\": \"\", \"hashtags\": [] }, \"Reddit\": { \"title\": \"\", \"hook\": \"\", \"post_text\": \"\", \"style_reference\": \"\", \"call_to_action\": \"\", \"subreddit_suggestion\": \"\" }, \"Discord\": { \"title\": \"\", \"hook\": \"\", \"post_text\": \"\", \"style_reference\": \"\", \"call_to_action\": \"\" } }\n  \n",
+        "hasOutputParser": true,
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "=You are an expert social media content strategist and conversion copywriter.\n\nYour role is to generate **premium, highly-engaging posts** for multiple platforms based on the inputs provided: title, description, link, and date.\n\nPlatform-specific requirements:\n\n**LinkedIn**\n- Hook: attention-grabbing, concise, value-driven\n- Content: educates, inspires, motivates professionals\n- CTA: subtle, encourages networking/engagement\n- Style: mix storytelling\n- Hashtags: trending professional hashtags\n**Twitter/X** - Hook: punchy, scroll-stopping (<280 chars) - Content: short, insightful, humorous - CTA: subtle, encourages likes, retweets, replies - Style: witty, fun, concise; rotate for A/B testing - Hashtags: trending viral hashtags **Instagram** - Hook: eye-catching first line - Content: visually descriptive, story-driven, inspiring - CTA: subtle, encourages saves, shares, comments - Style: fun, inspiring, educational; rotate for variety - Hashtags: trending visual/content hashtags **Reddit** - Hook: grabs attention in a thread, conversational - Content: informative, community-focused, encourages discussion - CTA: subtle, encourages comments - Style: educational, witty, insightful; adapt tone to subreddit - Suggest subreddit based on topic **Discord** - Hook: friendly, casual, attention-grabbing - Content: concise, community-oriented, fun or motivating - CTA: subtle, encourages reactions/replies - Style: mix storytelling; rotate based on audience\n\n\nAlways make the **titles, hooks, captions, and CTAs unique per platform**. Output **ONLY valid JSON** in the specified format.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        944,
+        0
+      ],
+      "id": "442496fb-0058-47cd-8562-70d1ace4656b",
+      "name": "AI Agent",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        992,
+        224
+      ],
+      "id": "bfa68157-1c31-4028-8fae-fba16456fcf5",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "OlsCdHqo7QXwWZTO",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        928,
+        128
+      ],
+      "id": "f82bceaa-04fd-4bed-84d3-b170c007affd",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "kUQgGhgQ9FoKST0N",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"LinkedIn\": {\n    \"title\": \"<generated premium title>\",\n    \"hook\": \"<attention-grabbing, concise, value-driven hook>\",\n    \"post_text\": \"<educates, inspires, or motivates professionals with enriched content>\",\n    \"style_reference\": \"<educational | inspiring | witty | fun>\",\n    \"call_to_action\": \"<subtle CTA encouraging networking/engagement>\",\n    \"hashtags\": [\"#Networking\", \"#ProfessionalGrowth\", \"#Insights\"]\n  },\n  \"Twitter\": {\n    \"title\": \"<generated punchy title>\",\n    \"hook\": \"<scroll-stopping hook <280 chars>\",\n    \"post_text\": \"<short, insightful, humorous content>\",\n    \"style_reference\": \"<witty | fun | concise>\",\n    \"call_to_action\": \"<subtle CTA encouraging likes, retweets, replies>\",\n    \"hashtags\": [\"#Trending\", \"#Insights\", \"#MarketingTips\"]\n  },\n  \"Instagram\": {\n    \"title\": \"<visually engaging title>\",\n    \"hook\": \"<eye-catching first line>\",\n    \"post_text\": \"<story-driven, inspiring content>\",\n    \"style_reference\": \"<fun | inspiring | educational>\",\n    \"call_to_action\": \"<subtle CTA encouraging saves, shares, comments>\",\n    \"hashtags\": [\"#Inspiration\", \"#Storytelling\", \"#ContentCreation\"]\n  },\n  \"Reddit\": {\n    \"title\": \"<thread-friendly title>\",\n    \"hook\": \"<conversational hook grabbing attention>\",\n    \"post_text\": \"<informative, community-focused content>\",\n    \"style_reference\": \"<educational | witty | insightful>\",\n    \"call_to_action\": \"<subtle CTA encouraging discussion/comments>\",\n    \"subreddit_suggestion\": \"<relevant subreddit based on topic>\"\n  },\n  \"Discord\": {\n    \"title\": \"<casual title>\",\n    \"hook\": \"<friendly, attention-grabbing hook>\",\n    \"post_text\": \"<concise, community-oriented, fun/motivating content>\",\n    \"style_reference\": \"<fun | witty | casual>\",\n    \"call_to_action\": \"<subtle CTA encouraging reactions/replies>\"\n  }\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1136,
+        224
+      ],
+      "id": "e15d21a2-abf4-435a-98b2-5bf15dc54236",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        128,
+        0
+      ],
+      "id": "cd1618a8-d29c-43ae-b8d3-88bd6f5981e6",
+      "name": "Get a message",
+      "webhookId": "9ad07485-3fc1-4397-b171-71d78ea4cc75",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jYO2WaWCGDB7JJu6",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items from the AI Agent\nconst allItems = $input.all();\n\n// Helper function to format platform content\nconst formatPost = (post) => {\n    if (!post) return \"\";\n    let content = `${post.title || \"\"}\\n${post.hook || \"\"}\\n${post.post_text || \"\"}\\nCTA: ${post.call_to_action || \"\"}\\nStyle: ${post.style_reference || \"\"}`;\n    if (post.hashtags && post.hashtags.length > 0) {\n        content += `\\nHashtags: ${post.hashtags.join(\" \")}`;\n    }\n    if (post.subreddit_suggestion) {\n        content += `\\nSubreddit: ${post.subreddit_suggestion}`;\n    }\n    return content;\n};\n\n// Process each item\nreturn allItems.map(item => {\n    const post = item.json.output || item.json;\n    const postDate = item.json.date || new Date().toISOString().split('T')[0];\n    const postTitle = $('Code in JavaScript').first().json.title || \"\";\n    \n    return {\n        json: {\n            Date: postDate,\n            Title: postTitle,\n            LinkedIn: formatPost(post.LinkedIn),\n            Twitter: formatPost(post.Twitter),\n            Instagram: formatPost(post.Instagram),\n            Reddit: formatPost(post.Reddit),\n            Discord: formatPost(post.Discord)\n        }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        0
+      ],
+      "id": "4d681caa-dad2-40de-8538-a2175e670d9e",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Z67_jkgyxorFItut33K5idb7182y577CU_03rmGfcQ4",
+          "mode": "list",
+          "cachedResultName": "\"ProcessedPost",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Z67_jkgyxorFItut33K5idb7182y577CU_03rmGfcQ4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{ $json.Title }}",
+            "LinkedIn": "={{ $json.LinkedIn }}",
+            "Twitter": "={{ $json.Twitter }}",
+            "Instagram": "={{ $json.Instagram }}",
+            "Reddit": "={{ $json.Reddit }}",
+            "Discord": "={{ $json.Discord }}",
+            "date": "={{ $json.Date }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn",
+              "displayName": "LinkedIn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Twitter",
+              "displayName": "Twitter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Instagram",
+              "displayName": "Instagram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reddit",
+              "displayName": "Reddit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Discord",
+              "displayName": "Discord",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "6fd1cf1b-0a5a-456c-b755-133a683dac7c",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YLAxZcSg3d4yNwRi",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1,
+    "availableInMCP": false
+  },
+  "versionId": "7c085ecf-b7f5-45c7-80fd-95e2883f452a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94445e73f62f972a1ac0961b1a6f12efb8b7c08fde05b3397468ed94ad3d9218"
+  },
+  "id": "aJeAeLDak644xiWs",
+  "tags": []
+}
